@@ -10,24 +10,21 @@ pub fn main() anyerror!void {
     const address = try net.Address.parseIp("127.0.0.1", 8080);
     var listener = try address.listen(.{
         .reuse_address = true,
-        .kernel_backlog = 1024,
     });
     defer listener.deinit();
+
     std.log.info("listening at {any}\n", .{address});
 
     while (true) {
-        if (listener.accept()) |conn| {
-            var client_arena = ArenaAllocator.init(allocator);
-            const client = try client_arena.allocator().create(Client);
-            errdefer client_arena.deinit();
+        const connection = try listener.accept();
 
-            client.* = Client.init(client_arena, conn.stream);
+        var client_arena = ArenaAllocator.init(allocator);
+        const client = try client_arena.allocator().create(Client);
+        errdefer client_arena.deinit();
 
-            const thread = try std.Thread.spawn(.{}, Client.run, .{client});
-            thread.detach();
-        } else |err| {
-            std.log.err("failed to accept connection {}", .{err});
-        }
+        client.* = Client.init(client_arena, connection.stream);
+
+        _ = try std.Thread.spawn(.{}, Client.handle, .{client});
     }
 }
 
@@ -44,12 +41,12 @@ const Client = struct {
         };
     }
 
-    fn run(self: *Client) !void {
+    fn handle(self: *Client) !void {
         defer self.arena.deinit();
         defer self.stream.close();
 
         const stream = self.stream;
-        _ = try stream.write("server: welcome to the chat server\n");
+        _ = try stream.write("Welcome to Zigge Key & Value!!\n");
 
         while (true) {
             var buf: [100]u8 = undefined;
